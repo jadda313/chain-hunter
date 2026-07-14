@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golf Solitaire: Chain Hunter - Hyper Edition</title>
+    <!-- Tailwind CSS for modern layout frameworks -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for retro-arcade typography styling -->
+    <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Arcade Visual Theme */
+        body {
+            background-color: #020208;
+            font-family: 'Orbitron', sans-serif;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        /* 3D Glass panel look for game scoreboards */
+        .arcade-panel {
+            background: rgba(10, 10, 30, 0.85);
+            border: 3px solid #3b82f6;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 15px rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+        }
+
+        /* Pure Flat Minimalist White Cards */
+        .arcade-card {
+            background: #ffffff !important;
+            border: 2px solid #dddddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        /* Optional Hints glowing highlight */
+        .arcade-card.hint-highlight {
+            border: 3px solid #eab308 !important;
+            box-shadow: 0 0 15px #eab308, 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Next optimal move glowing highlight in Demo mode */
+        .arcade-card.demo-highlight {
+            border: 3.5px solid #10b981 !important;
+            box-shadow: 0 0 20px #10b981, 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Back of stock card - Flat clean red geometric design */
+        .card-back {
+            background: repeating-linear-gradient(
+                45deg,
+                #991b1b,
+                #991b1b 10px,
+                #7f1d1d 10px,
+                #7f1d1d 20px
+            ) !important;
+            border: 2px solid #b91c1c;
+        }
+
+        /* Prevent dragging artifacts on game assets */
+        img, div, span, button {
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+    </style>
+</head>
+<body class="w-full h-screen flex flex-col items-center justify-between p-4 relative">
+
+    <!-- HEADER BAR: Navigation, Game Seed Controllers, Hints, and Undo -->
+    <header class="w-full max-w-5xl flex flex-wrap justify-between items-center gap-2 z-10">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xs md:text-2xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-pink-500 to-cyan-400" style="font-family: 'Press Start 2P', monospace;">
+                GOLF: CHAIN HUNTER
+            </h1>
+            <span class="text-[9px] md:text-xs bg-red-600 text-white font-bold px-2 py-0.5 rounded animate-pulse">HYPER ED.</span>
+        </div>
+
+        <div class="flex gap-1.5 flex-wrap">
+            <!-- Hints Toggle Button -->
+            <button id="btnHints" onclick="toggleHints()" class="px-2.5 py-1.5 rounded text-[10px] md:text-xs font-bold bg-gray-800 border border-gray-600 hover:bg-gray-700 transition">
+                HINTS: ON
+            </button>
+            <!-- Backtrack Undo Move Button -->
+            <button id="btnUndo" onclick="performUndo()" class="px-2.5 py-1.5 rounded text-[10px] md:text-xs font-bold bg-indigo-950 border border-indigo-500 text-indigo-200 hover:bg-indigo-900 transition flex items-center gap-1">
+                <span>↩</span> UNDO
+            </button>
+            <!-- Replay the same randomized layout setup -->
+            <button onclick="restartGame()" class="px-2.5 py-1.5 rounded text-[10px] md:text-xs font-bold bg-yellow-600 text-white hover:bg-yellow-500 transition">
+                RETRY BOARD
+            </button>
+            <!-- Disabled until game is in final run state -->
+            <button id="btnNewGame" onclick="startNewGame()" class="px-2.5 py-1.5 rounded text-[10px] md:text-xs font-bold bg-blue-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-500 transition">
+                NEW GAME
+            </button>
+        </div>
+    </header>
+
+    <!-- SCOREBOARD DASHBOARD - Re-sized to save critical vertical space -->
+    <div class="w-full max-w-5xl grid grid-cols-2 sm:grid-cols-5 gap-1.5 mt-1 z-10">
+        <div class="arcade-panel p-1.5 flex flex-col items-center justify-center relative min-h-[50px] sm:min-h-[58px]" id="currentStreakPanel">
+            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Current Streak</span>
+            <span id="txtCurrentStreak" class="text-xl font-black text-yellow-400">0</span>
+            <div id="streakFireBanner" class="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg hidden">STREAK INCOMING</div>
+        </div>
+        <div class="arcade-panel p-1.5 flex flex-col items-center justify-center min-h-[50px] sm:min-h-[58px]">
+            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Best Streak</span>
+            <span id="txtBestStreak" class="text-xl font-black text-cyan-400">0</span>
+        </div>
+        <div class="arcade-panel p-1.5 flex flex-col items-center justify-center min-h-[50px] sm:min-h-[58px]">
+            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Longest Chain</span>
+            <span id="txtLongestChain" class="text-xl font-black text-pink-500">0</span>
+        </div>
+        <div class="arcade-panel p-1.5 flex flex-col items-center justify-center min-h-[50px] sm:min-h-[58px]">
+            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Cleared Cards</span>
+            <span id="txtCardsCleared" class="text-xl font-black text-green-400">0/35</span>
+        </div>
+        <div class="arcade-panel p-1.5 flex flex-col items-center justify-center col-span-2 sm:col-span-1 min-h-[50px] sm:min-h-[58px]">
+            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Active Chains</span>
+            <span id="txtChainsCompleted" class="text-xl font-black text-purple-400">0</span>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE ARCADE CANVAS AREA -->
+    <main class="w-full max-w-5xl flex-grow my-3 relative rounded-xl overflow-hidden shadow-2xl border-4 border-gray-800">
+        <canvas id="gameCanvas" class="w-full h-full block bg-slate-950"></canvas>
+    </main>
+
+    <!-- AUTOMATED REPLAY HUD FOR STEP-BY-STEP DEMO -->
+    <div id="demoControls" class="fixed bottom-6 left-1/2 -translate-x-1/2 arcade-panel p-3 flex flex-wrap items-center justify-between gap-3 z-40 hidden border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-slate-950/95 max-w-lg w-[92%]">
+        <div class="flex flex-col flex-grow">
+            <span class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">🤖 AUTO-SOLVER DEMO MODE</span>
+            <span id="demoStepInfo" class="text-xs text-white font-mono mt-0.5">Step 0 / 0</span>
+        </div>
+        <div class="flex gap-2 items-center flex-wrap">
+            <button id="btnPrevDemo" onclick="prevDemoStep()" class="px-2.5 py-1.5 bg-gray-800 text-[10px] font-bold rounded hover:bg-gray-700 transition">◀ BACK</button>
+            <button id="btnNextDemo" onclick="nextDemoStep()" class="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded hover:bg-emerald-500 transition">NEXT STEP ▶</button>
+            <button id="btnAutoPlay" onclick="toggleAutoPlay()" class="px-3 py-1.5 bg-cyan-600 text-white text-[10px] font-bold rounded hover:bg-cyan-500 transition">AUTO: OFF</button>
+            <button onclick="exitDemoMode()" class="px-2.5 py-1.5 bg-red-900 border border-red-600 text-red-200 text-[10px] font-bold rounded hover:bg-red-800 transition">EXIT</button>
+        </div>
+    </div>
+
+    <!-- HIGH-SCORE END STATS MODAL -->
+    <div id="statsModal" class="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="arcade-panel max-w-md w-full p-4 sm:p-6 text-center flex flex-col gap-3 sm:gap-4 border-yellow-400 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+            <h2 id="modalHeader" class="text-lg sm:text-xl font-black tracking-wider text-yellow-400 uppercase" style="font-family: 'Press Start 2P', monospace;">
+                STAGE CLEAR
+            </h2>
+            
+            <div class="grid grid-cols-2 gap-1.5 text-left my-0.5 font-bold text-xs">
+                <div class="bg-gray-900/60 p-2 rounded border border-gray-800">
+                    <div class="text-[9px] text-gray-400 uppercase">Cards Cleared</div>
+                    <div id="lblCleared" class="text-sm sm:text-base text-white">0/35</div>
+                </div>
+                <div class="bg-gray-900/60 p-2 rounded border border-gray-800">
+                    <div class="text-[9px] text-gray-400 uppercase">Longest Chain</div>
+                    <div id="lblLongest" class="text-sm sm:text-base text-white">0</div>
+                </div>
+                <div class="bg-gray-900/60 p-2 rounded border border-gray-800">
+                    <div class="text-[9px] text-gray-400 uppercase">Chains Created</div>
+                    <div id="lblTotalChains" class="text-sm sm:text-base text-white">0</div>
+                </div>
+                <div class="bg-gray-900/60 p-2 rounded border border-gray-800">
+                    <div class="text-[9px] text-gray-400 uppercase">Average Chain</div>
+                    <div id="lblAvgChain" class="text-sm sm:text-base text-white">0.0</div>
+                </div>
+            </div>
+
+            <!-- LIFETIME DATA & INTELLIGENT PLAYER CRITIQUE -->
+            <div class="bg-gray-900/80 p-2.5 sm:p-3 rounded border border-indigo-500/30 text-center my-0.5">
+                <div class="text-[9px] text-indigo-400 uppercase font-black tracking-widest">LIFETIME APP RECORDS</div>
+                <div class="flex justify-around items-center my-1">
+                    <div>
+                        <span class="text-[10px] text-gray-400">Played:</span>
+                        <span id="lblLifetimeGames" class="text-xs text-white font-bold">0</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-gray-400">Wins:</span>
+                        <span id="lblLifetimeWins" class="text-xs text-white font-bold">0</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-gray-400">Win Rate:</span>
+                        <span id="lblWinRate" class="text-xs text-green-400 font-bold">0%</span>
+                    </div>
+                </div>
+                <div id="lblCritique" class="text-[11px] sm:text-xs font-bold text-yellow-400 mt-1.5 italic border-t border-gray-800 pt-1.5 tracking-wide leading-relaxed"></div>
+                
+                <!-- Retro Double-Tap Stats Reset trigger button -->
+                <button id="btnResetStats" onclick="resetLifetimeStats()" class="mt-2 text-[9px] text-red-400 hover:text-red-300 underline uppercase tracking-widest block mx-auto transition">
+                    ⚠ Reset Lifetime Stats
+                </button>
+            </div>
+
+            <!-- Custom board analysis section -->
+            <div class="w-full">
+                <button id="btnAnalyze" onclick="runSolvabilityAnalysis()" class="w-full py-2 bg-slate-900 border border-cyan-500 hover:bg-slate-800 text-cyan-400 font-bold text-[10px] rounded transition flex items-center justify-center gap-2 tracking-wider">
+                    <span>🔍</span> DIAGNOSE BOARD SOLVABILITY
+                </button>
+                <div id="analysisResult" class="hidden text-[10px] font-mono p-2.5 rounded border text-center mt-1.5"></div>
+                
+                <!-- Demo Offer trigger container -->
+                <div id="demoOfferContainer" class="hidden mt-2">
+                    <button onclick="startDemoMode()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded transition flex items-center justify-center gap-2 tracking-wider">
+                        <span>🤖</span> WATCH STEP-BY-STEP SOLUTION DEMO
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Backtracking option to rescue games -->
+            <button id="btnModalRescue" onclick="rescueWithUndo()" class="w-full py-2 rounded font-bold bg-indigo-950 border border-indigo-500 hover:bg-indigo-900 text-indigo-200 transition text-[10px] tracking-wider">
+                ↩ UNDO LAST PLAY
+            </button>
+
+            <div class="flex gap-2">
+                <button onclick="restartGame()" class="flex-1 py-2.5 rounded font-black bg-yellow-600 hover:bg-yellow-500 text-white transition tracking-wider text-[10px]">
+                    RETRY SAME
+                </button>
+                <button onclick="startNewGame()" class="flex-1 py-2.5 rounded font-black bg-blue-600 hover:bg-blue-500 text-white transition tracking-wider text-[10px]">
+                    NEW GAME
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // AUDIO SYNTH ENGINE (No external link loading)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function playSynthSound(type) {
+            try {
+                if (!audioCtx) audioCtx = new AudioContext();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'select') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(587.33, now); // D5
+                    osc.frequency.setValueAtTime(880, now + 0.05); // A5
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+
+                } else if (type === 'draw') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(220, now); // A3
+                    osc.frequency.exponentialRampToValueAtTime(110, now + 0.2); // A2
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+
+                } else if (type === 'powerup') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+
+                } else if (type === 'explosion') {
+                    const bufferSize = audioCtx.sampleRate * 1.5; 
+                    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        data[i] = Math.random() * 2 - 1;
+                    }
+                    
+                    const noise = audioCtx.createBufferSource();
+                    noise.buffer = buffer;
+                    
+                    const filter = audioCtx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.Q.setValueAtTime(8, now);
+                    filter.frequency.setValueAtTime(1000, now);
+                    filter.frequency.exponentialRampToValueAtTime(10, now + 1.2);
+                    
+                    const subOsc = audioCtx.createOscillator();
+                    subOsc.type = 'sawtooth';
+                    subOsc.frequency.setValueAtTime(100, now);
+                    subOsc.frequency.linearRampToValueAtTime(10, now + 0.8);
+                    
+                    const gain = audioCtx.createGain();
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+                    
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    subOsc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    noise.start(now);
+                    subOsc.start(now);
+                    noise.stop(now + 1.5);
+                    subOsc.stop(now + 1.5);
+
+                } else if (type === 'clear') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1046.5, now); // C6
+                    osc.frequency.setValueAtTime(1318.5, now + 0.08); // E6
+                    osc.frequency.setValueAtTime(1568.0, now + 0.16); // G6
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'evaluationChime') {
+                    for (let i = 0; i < 5; i++) {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sawtooth';
+                        const timeOffset = now + (i * 0.35);
+                        osc.frequency.setValueAtTime(850, timeOffset);
+                        osc.frequency.exponentialRampToValueAtTime(130, timeOffset + 0.32);
+                        gain.gain.setValueAtTime(0.08, timeOffset);
+                        gain.gain.exponentialRampToValueAtTime(0.001, timeOffset + 0.32);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(timeOffset);
+                        osc.stop(timeOffset + 0.35);
+                    }
+                }
+            } catch (e) {
+                console.warn("Synth audio not permitted yet by user gesture", e);
+            }
+        }
+
+        // GAME SETUP VARIABLES
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const COLORS = { '♠': '#000000', '♣': '#000000', '♥': '#e63946', '♦': '#e63946' };
+        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        let initialTableau = [];
+        let initialStock = [];
+        let initialWaste = [];
+
+        let tableau = [[], [], [], [], [], [], []];
+        let stockPile = [];
+        let wastePile = [];
+
+        let undoStack = [];
+
+        let currentStreak = 0;
+        let longestChainThisGame = 0;
+        let bestStreakEver = parseInt(localStorage.getItem('golf_chain_best_streak')) || 0;
+        let activeChainsHistory = []; 
+        let cardsClearedCount = 0;
+        let gameActive = true;
+        let hasActionRegistered = false; 
+
+        let isHintsEnabled = true;
+
+        let isVictoryActive = false;
+        let victoryTimer = 0;
+
+        let isEvaluationActive = false;
+        let evaluationTimer = 0;
+        let evaluationIsVictory = false;
+        let evaluationText = "";
+        let evaluationSubtext = "";
+
+        let isDemoActive = false;
+        let demoPath = [];
+        let demoIndex = 0;
+        let autoPlayTimer = null;
+        let isAutoPlayOn = false;
+
+        let resetConfirmActive = false;
+        let resetTimerId = null;
+
+        // --- ANIMATION & GRAPHICS ENGINE ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let clickBoxes = []; 
+
+        let particles = [];
+        let floatTexts = [];
+        let screenShakeAmount = 0;
+        let impactFlashFrames = 0;
+        let impactFlashColor = '#ffffff';
+
+        let activeComboNado = null;
+        let timeScale = 1.0;
+        let lastFrameTime = performance.now();
+
+        function getCardLayoutCoordinates(w, h) {
+            const gridCols = 7;
+            const cardWidth = Math.min(w / (gridCols + 1.2), 90);
+            const cardHeight = cardWidth * 1.45;
+            const gapX = (w - (gridCols * cardWidth)) / (gridCols + 1);
+            
+            return {
+                cardWidth,
+                cardHeight,
+                gapX,
+                startY: h * 0.12,
+                rowSpacing: cardHeight * 0.28, 
+                stockX: gapX * 2,
+                stockY: h * 0.72,
+                wasteX: w - (gapX * 2) - cardWidth,
+                wasteY: h * 0.72
+            };
+        }
+
+        function deepClone(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        function pushToUndoStack() {
+            undoStack.push({
+                tableau: deepClone(tableau),
+                stockPile: deepClone(stockPile),
+                wastePile: deepClone(wastePile),
+                currentStreak: currentStreak,
+                longestChainThisGame: longestChainThisGame,
+                activeChainsHistory: deepClone(activeChainsHistory),
+                cardsClearedCount: cardsClearedCount,
+                hasActionRegistered: hasActionRegistered,
+                demoIndex: demoIndex 
+            });
+            updateUndoButtonDisplay();
+        }
+
+        function updateUndoButtonDisplay() {
+            const btn = document.getElementById('btnUndo');
+            if (undoStack.length > 0 && !isDemoActive) {
+                btn.removeAttribute('disabled');
+                btn.style.opacity = "1.0";
+            } else {
+                btn.setAttribute('disabled', 'true');
+                btn.style.opacity = "0.3";
+            }
+        }
+
+        function registerFirstActionOfGame() {
+            if (!hasActionRegistered && !isDemoActive) {
+                hasActionRegistered = true;
+                let totalGames = parseInt(localStorage.getItem('golf_chain_total_games')) || 0;
+                totalGames++;
+                localStorage.setItem('golf_chain_total_games', totalGames);
+            }
+        }
+
+        function canPlayCard(card) {
+            const wasteTop = wastePile[wastePile.length - 1];
+            if (!wasteTop) return true;
+
+            const diff = Math.abs(card.value - wasteTop.value);
+            return diff === 1 || diff === 12;
+        }
+
+        function playTableauCard(colIdx, eventX, eventY) {
+            if (!gameActive || isDemoActive) return;
+
+            const col = tableau[colIdx];
+            if (col.length === 0) return;
+
+            const card = col[col.length - 1];
+            if (canPlayCard(card)) {
+                registerFirstActionOfGame();
+                pushToUndoStack();
+
+                col.pop();
+                wastePile.push(card);
+                cardsClearedCount++;
+                currentStreak++;
+
+                if (currentStreak > longestChainThisGame) {
+                    longestChainThisGame = currentStreak;
+                }
+                if (currentStreak > bestStreakEver) {
+                    bestStreakEver = currentStreak;
+                    localStorage.setItem('golf_chain_best_streak', bestStreakEver);
+                }
+
+                playSynthSound('select');
+
+                spawnFloatingText(`+${currentStreak}`, eventX, eventY - 20, '#eab308');
+
+                evaluateStreakMilestones(eventX, eventY);
+
+                updateHUDDisplays();
+                evaluateWinLossStatus();
+            }
+        }
+
+        function drawStockCard() {
+            if (!gameActive || stockPile.length === 0 || isDemoActive) return;
+
+            registerFirstActionOfGame();
+            pushToUndoStack();
+
+            if (currentStreak > 0) {
+                activeChainsHistory.push(currentStreak);
+                currentStreak = 0;
+            }
+
+            const card = stockPile.pop();
+            wastePile.push(card);
+
+            playSynthSound('draw');
+
+            const geo = getCardLayoutCoordinates(canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+            spawnFloatingText("DRAW", geo.stockX + geo.cardWidth/2, geo.stockY, '#a8a29e');
+
+            updateHUDDisplays();
+            evaluateWinLossStatus();
+        }
+
+        function evaluateStreakMilestones(fxX, fxY) {
+            spawnSparksBurst(fxX, fxY, '#ffb700', 15);
+
+            if (currentStreak >= 5) {
+                screenShakeAmount = Math.min(25, (currentStreak - 4) * 3.5);
+                playSynthSound('clear');
+                spawnSparksBurst(fxX, fxY, '#ff007f', 25);
+            }
+
+            if (currentStreak >= 15) {
+                playSynthSound('explosion');
+                triggerComboNado(fxX, fxY);
+            }
+        }
+
+        function triggerComboNado(startX, startY) {
+            timeScale = 0.08;
+            impactFlashColor = '#ff0055';
+            impactFlashFrames = 30;
+            screenShakeAmount = 35;
+
+            activeComboNado = {
+                x: startX,
+                y: startY,
+                radius: 40,
+                color: '#00f0ff',
+                targetY: canvas.height * 0.4,
+                scale: 1.0,
+                speed: 800,
+                pulse: 0
+            };
+        }
+
+        function hasAnyValidMovesRemaining() {
+            const wasteTop = wastePile[wastePile.length - 1];
+            if (!wasteTop) return false;
+
+            for (let c = 0; c < 7; c++) {
+                if (tableau[c].length > 0) {
+                    const exposedCard = tableau[c][tableau[c].length - 1];
+                    if (canPlayCard(exposedCard)) return true;
+                }
+            }
+            return false;
+        }
+
+        function evaluateWinLossStatus() {
+            if (cardsClearedCount === 35) {
+                gameActive = false;
+                triggerVictoryEffect();
+                return;
+            }
+
+            if (stockPile.length === 0 && !hasAnyValidMovesRemaining()) {
+                gameActive = false;
+                playSynthSound('explosion');
+                setTimeout(() => {
+                    triggerEvaluationSequence(false);
+                }, 1200);
+            }
+        }
+
+        function triggerVictoryEffect() {
+            isVictoryActive = true;
+            victoryTimer = 0;
+            playSynthSound('clear');
+            impactFlashColor = '#00f0ff';
+            impactFlashFrames = 30;
+            screenShakeAmount = 30;
+
+            if (!isDemoActive) {
+                let totalWins = parseInt(localStorage.getItem('golf_chain_total_wins')) || 0;
+                totalWins++;
+                localStorage.setItem('golf_chain_total_wins', totalWins);
+            }
+
+            setTimeout(() => {
+                if (isVictoryActive) {
+                    isVictoryActive = false;
+                    triggerEvaluationSequence(true);
+                }
+            }, 5500);
+        }
+
+        function triggerEvaluationSequence(isVictory) {
+            isEvaluationActive = true;
+            evaluationTimer = 0;
+            evaluationIsVictory = isVictory;
+
+            let totalGames = parseInt(localStorage.getItem('golf_chain_total_games')) || 0;
+            let totalWins = parseInt(localStorage.getItem('golf_chain_total_wins')) || 0;
+            
+            if (isVictory && !hasActionRegistered) {
+                totalWins++;
+                totalGames++;
+            }
+            let winPercentage = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
+            if (winPercentage <= 20) {
+                evaluationText = "HORRIBLE PLAYER";
+                evaluationSubtext = "SOLITAIRE ABILITY: UTTERLY TRASH!";
+            } else if (winPercentage <= 40) {
+                evaluationText = "NOT HORRIBLE, JUST TERRIBLE";
+                evaluationSubtext = "YOUR DECISION TREE IS AN EMBARRASSMENT!";
+            } else if (winPercentage <= 60) {
+                evaluationText = "MERELY OK";
+                evaluationSubtext = "AVERAGE BIOLOGICAL BRAIN CONFORMITY DETECTED.";
+            } else if (winPercentage <= 80) {
+                evaluationText = "PRETTY GOOD";
+                evaluationSubtext = "DECENT RATING FOR A CARBON LIFEFORM!";
+            } else {
+                evaluationText = "IMPRESSED FLESH BRAIN";
+                evaluationSubtext = "SOLITAIRE GOD STATUS OFFICIALLY SECURED!";
+            }
+
+            playSynthSound('evaluationChime');
+        }
+
+        function performUndo() {
+            if (undoStack.length === 0) return;
+
+            const stateSnapshot = undoStack.pop();
+
+            tableau = stateSnapshot.tableau;
+            stockPile = stateSnapshot.stockPile;
+            wastePile = stateSnapshot.wastePile;
+            currentStreak = stateSnapshot.currentStreak;
+            longestChainThisGame = stateSnapshot.longestChainThisGame;
+            activeChainsHistory = stateSnapshot.activeChainsHistory;
+            cardsClearedCount = stateSnapshot.cardsClearedCount;
+            hasActionRegistered = stateSnapshot.hasActionRegistered;
+            demoIndex = stateSnapshot.demoIndex || 0;
+
+            gameActive = true;
+            isVictoryActive = false;
+            isEvaluationActive = false;
+
+            playSynthSound('draw');
+            updateHUDDisplays();
+            updateUndoButtonDisplay();
+
+            if (isDemoActive) {
+                updateDemoModeHUD();
+            }
+        }
+
+        function rescueWithUndo() {
+            closeModal();
+            performUndo();
+        }
+
+        // --- OPTIMIZED ADVANCED DECISION SOLVER ---
+        const memo = new Map();
+
+        function dfs(depths, stockPointer, wasteValue) {
+            const key = depths.join(',') + '_' + stockPointer + '_' + wasteValue;
+            if (memo.has(key)) return memo.get(key);
+            
+            let currentCleared = 35 - depths.reduce((a, b) => a + b, 0);
+            let best = { maxCount: currentCleared, nextAction: null };
+            
+            if (currentCleared === 35) {
+                return best; 
+            }
+            
+            for (let c = 0; c < 7; c++) {
+                const depth = depths[c];
+                if (depth > 0) {
+                    const card = initialTableau[c][depth - 1];
+                    const diff = Math.abs(card.value - wasteValue);
+                    if (diff === 1 || diff === 12) {
+                        const nextDepths = [...depths];
+                        nextDepths[c]--;
+                        const result = dfs(nextDepths, stockPointer, card.value);
+                        if (result.maxCount > best.maxCount) {
+                            best = {
+                                maxCount: result.maxCount,
+                                nextAction: { type: 'play', colIdx: c, value: card.value }
+                            };
+                        }
+                        if (best.maxCount === 35) {
+                            memo.set(key, best);
+                            return best;
+                        }
+                    }
+                }
+            }
+            
+            if (stockPointer > 0) {
+                const nextWasteValue = initialStock[stockPointer - 1].value;
+                const result = dfs(nextDepths = depths, stockPointer - 1, nextWasteValue);
+                if (result.maxCount > best.maxCount) {
+                    best = {
+                        maxCount: result.maxCount,
+                        nextAction: { type: 'draw', value: nextWasteValue }
+                    };
+                }
+            }
+            
+            memo.set(key, best);
+            return best;
+        }
+
+        function reconstructPath() {
+            memo.clear();
+            const startDepths = initialTableau.map(col => col.length);
+            const startStockPointer = initialStock.length;
+            const startWasteValue = initialWaste[initialWaste.length - 1].value;
+            
+            const optimalResult = dfs(startDepths, startStockPointer, startWasteValue);
+            
+            const path = [];
+            let currentDepths = [...startDepths];
+            let currentStockPointer = startStockPointer;
+            let currentWasteValue = startWasteValue;
+            
+            while (true) {
+                const key = currentDepths.join(',') + '_' + currentStockPointer + '_' + currentWasteValue;
+                const entry = memo.get(key);
+                if (!entry || !entry.nextAction) break;
+                
+                const action = entry.nextAction;
+                path.push(action);
+                
+                if (action.type === 'play') {
+                    currentDepths[action.colIdx]--;
+                    currentWasteValue = action.value;
+                } else {
+                    currentStockPointer--;
+                    currentWasteValue = action.value;
+                }
+            }
+            return { maxCount: optimalResult.maxCount, path: path };
+        }
+
+        let lastAnalysisResult = null; 
+
+        function runSolvabilityAnalysis() {
+            const btn = document.getElementById('btnAnalyze');
+            const resultDiv = document.getElementById('analysisResult');
+            const demoOffer = document.getElementById('demoOfferContainer');
+            
+            btn.setAttribute('disabled', 'true');
+            btn.innerText = "⚡ RUNNING SOLVER DIAGNOSTIC...";
+            resultDiv.classList.remove('hidden');
+            resultDiv.className = "text-xs font-mono p-3 rounded border border-cyan-500 bg-black/50 text-cyan-400 animate-pulse mt-2 text-center";
+            resultDiv.innerText = "Scanning game states... Calculating optimal pathing matrix...";
+            
+            playSynthSound('draw'); 
+            
+            setTimeout(() => {
+                const startTime = performance.now();
+                const analysis = reconstructPath();
+                const duration = (performance.now() - startTime).toFixed(1);
+                
+                lastAnalysisResult = analysis;
+                btn.style.display = "none"; 
+                
+                demoOffer.classList.remove('hidden');
+                
+                if (analysis.maxCount === 35) {
+                    resultDiv.className = "text-xs font-mono p-3 rounded border border-green-500 bg-green-950/40 text-green-400 mt-2 text-left";
+                    resultDiv.innerHTML = `
+                        <div class="font-bold text-xs text-green-300 mb-1">🏆 BOARD SOLVABLE!</div>
+                        This exact board setup was 100% solvable. A perfect sequence of moves exists to clear all 35 cards.<br>
+                        <span class="text-[9px] text-gray-500 mt-1 block">Diagnostic duration: ${duration}ms</span>
+                    `;
+                    playSynthSound('clear');
+                } else {
+                    resultDiv.className = "text-xs font-mono p-3 rounded border border-red-500 bg-red-950/40 text-red-400 mt-2 text-left";
+                    resultDiv.innerHTML = `
+                        <div class="font-bold text-xs text-red-300 mb-1">⚠️ IMPOSSIBLE DECK</div>
+                        This layout was mathematically impossible to fully clear.<br>
+                        The absolute maximum clear possible on this deal was <strong>${analysis.maxCount}/35 cards</strong>.<br>
+                        <span class="text-[9px] text-gray-500 mt-1 block">Diagnostic duration: ${duration}ms</span>
+                    `;
+                    playSynthSound('select');
+                }
+            }, 850); 
+        }
+
+        // RESET LIFETIME STATS FUNCTION WITH TWO-TAP ARCADE DOUBLE-CHECK
+        function resetLifetimeStats() {
+            const btn = document.getElementById('btnResetStats');
+            if (!resetConfirmActive) {
+                resetConfirmActive = true;
+                btn.innerText = "⚠️ TAP AGAIN TO RESET";
+                btn.className = "mt-2 text-[10px] text-red-500 font-bold hover:text-red-400 underline uppercase tracking-widest block mx-auto animate-pulse";
+                
+                resetTimerId = setTimeout(() => {
+                    resetConfirmActive = false;
+                    btn.innerText = "⚠ Reset Lifetime Stats";
+                    btn.className = "mt-2 text-[9px] text-red-400 hover:text-red-300 underline uppercase tracking-widest block mx-auto";
+                }, 3000);
+            } else {
+                clearTimeout(resetTimerId);
+                resetConfirmActive = false;
+                
+                localStorage.setItem('golf_chain_total_games', 0);
+                localStorage.setItem('golf_chain_total_wins', 0);
+                playSynthSound('explosion');
+                
+                btn.innerText = "⚠ Reset Lifetime Stats";
+                btn.className = "mt-2 text-[9px] text-red-400 hover:text-red-300 underline uppercase tracking-widest block mx-auto";
+                
+                displayGameOverModal(evaluationIsVictory);
+            }
+        }
+
+        // DEMO / SOLUTIONS AUTO-PLAYBACK MECHANICS
+        function startDemoMode() {
+            closeModal();
+            if (!lastAnalysisResult) {
+                lastAnalysisResult = reconstructPath();
+            }
+
+            tableau = deepClone(initialTableau);
+            stockPile = deepClone(initialStock);
+            wastePile = deepClone(initialWaste);
+
+            undoStack = [];
+            currentStreak = 0;
+            longestChainThisGame = 0;
+            activeChainsHistory = [];
+            cardsClearedCount = 0;
+            gameActive = true;
+            isVictoryActive = false;
+            isEvaluationActive = false;
+
+            particles = [];
+            floatTexts = [];
+            screenShakeAmount = 0;
+            impactFlashFrames = 0;
+            activeComboNado = null;
+            timeScale = 1.0;
+
+            isDemoActive = true;
+            demoPath = lastAnalysisResult.path;
+            demoIndex = 0;
+            isAutoPlayOn = false;
+
+            document.getElementById('demoControls').classList.remove('hidden');
+            updateDemoModeHUD();
+            updateHUDDisplays();
+            playSynthSound('powerup');
+        }
+
+        function updateDemoModeHUD() {
+            const stepText = document.getElementById('demoStepInfo');
+            stepText.innerText = `Move ${demoIndex} / ${demoPath.length} (${lastAnalysisResult.maxCount} clears optimal)`;
+
+            const btnPrev = document.getElementById('btnPrevDemo');
+            const btnNext = document.getElementById('btnNextDemo');
+
+            if (demoIndex === 0) {
+                btnPrev.setAttribute('disabled', 'true');
+                btnPrev.style.opacity = "0.3";
+            } else {
+                btnPrev.removeAttribute('disabled');
+                btnPrev.style.opacity = "1";
+            }
+
+            if (demoIndex >= demoPath.length) {
+                btnNext.setAttribute('disabled', 'true');
+                btnNext.style.opacity = "0.3";
+                if (isAutoPlayOn) {
+                    toggleAutoPlay(); 
+                }
+            } else {
+                btnNext.removeAttribute('disabled');
+                btnNext.style.opacity = "1";
+            }
+        }
+
+        function nextDemoStep() {
+            if (!isDemoActive || demoIndex >= demoPath.length) return;
+
+            const action = demoPath[demoIndex];
+            pushToUndoStack();
+
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+            const geo = getCardLayoutCoordinates(w, h);
+
+            if (action.type === 'play') {
+                const col = tableau[action.colIdx];
+                const card = col.pop();
+                wastePile.push(card);
+                cardsClearedCount++;
+                currentStreak++;
+
+                if (currentStreak > longestChainThisGame) {
+                    longestChainThisGame = currentStreak;
+                }
+                if (currentStreak > bestStreakEver) {
+                    bestStreakEver = currentStreak;
+                    localStorage.setItem('golf_chain_best_streak', bestStreakEver);
+                }
+
+                playSynthSound('select');
+
+                const cx = geo.gapX + action.colIdx * (geo.cardWidth + geo.gapX) + geo.cardWidth / 2;
+                const ry = geo.startY + (col.length) * geo.rowSpacing;
+                spawnFloatingText(`+${currentStreak}`, cx, ry - 20, '#eab308');
+
+                evaluateStreakMilestones(cx, ry);
+            } else {
+                if (currentStreak > 0) {
+                    activeChainsHistory.push(currentStreak);
+                    currentStreak = 0;
+                }
+
+                const card = stockPile.pop();
+                wastePile.push(card);
+                playSynthSound('draw');
+
+                spawnFloatingText("DRAW", geo.stockX + geo.cardWidth / 2, geo.stockY, '#a8a29e');
+            }
+
+            demoIndex++;
+            updateDemoModeHUD();
+            updateHUDDisplays();
+            evaluateWinLossStatus();
+        }
+
+        function prevDemoStep() {
+            if (!isDemoActive || demoIndex <= 0) return;
+            performUndo();
+        }
+
+        function toggleAutoPlay() {
+            const btn = document.getElementById('btnAutoPlay');
+            if (isAutoPlayOn) {
+                clearInterval(autoPlayTimer);
+                isAutoPlayOn = false;
+                btn.innerText = "AUTO: OFF";
+                btn.className = "px-3 py-1.5 bg-cyan-600 text-white text-xs font-bold rounded hover:bg-cyan-500 transition";
+            } else {
+                isAutoPlayOn = true;
+                btn.innerText = "AUTO: ON";
+                btn.className = "px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded hover:bg-emerald-500 transition animate-pulse";
+                autoPlayTimer = setInterval(() => {
+                    if (demoIndex < demoPath.length) {
+                        nextDemoStep();
+                    } else {
+                        toggleAutoPlay();
+                    }
+                }, 1000); 
+            }
+        }
+
+        function exitDemoMode() {
+            if (isAutoPlayOn) {
+                toggleAutoPlay();
+            }
+            isDemoActive = false;
+            document.getElementById('demoControls').classList.add('hidden');
+            updateHUDDisplays();
+            updateUndoButtonDisplay();
+        }
+
+        // --- SCREEN SCOREBOARD SYNC ---
+        function updateHUDDisplays() {
+            document.getElementById('txtCurrentStreak').innerText = currentStreak;
+            document.getElementById('txtBestStreak').innerText = bestStreakEver;
+            document.getElementById('txtLongestChain').innerText = longestChainThisGame;
+            document.getElementById('txtCardsCleared').innerText = `${cardsClearedCount}/35`;
+            document.getElementById('txtChainsCompleted').innerText = activeChainsHistory.length + (currentStreak > 0 ? 1 : 0);
+
+            const btnRescue = document.getElementById('btnModalRescue');
+            if (isDemoActive) {
+                btnRescue.style.display = "none";
+            } else {
+                btnRescue.style.display = "block";
+            }
+
+            const fireBanner = document.getElementById('streakFireBanner');
+            if (currentStreak >= 15) {
+                fireBanner.classList.remove('hidden');
+                fireBanner.innerText = "🔥 COMBO-NADO ACTIVE";
+                fireBanner.className = "absolute -top-3 left-1/2 -translate-x-1/2 bg-cyan-500 text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg animate-bounce text-black";
+            } else if (currentStreak >= 10) {
+                fireBanner.classList.remove('hidden');
+                fireBanner.innerText = "🔥 ULTRA COMBO";
+                fireBanner.className = "absolute -top-3 left-1/2 -translate-x-1/2 bg-red-500 text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg text-white";
+            } else if (currentStreak >= 5) {
+                fireBanner.classList.remove('hidden');
+                fireBanner.innerText = "🔥 HOT STREAK";
+                fireBanner.className = "absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg text-white";
+            } else {
+                fireBanner.classList.add('hidden');
+            }
+
+            const btnNewGame = document.getElementById('btnNewGame');
+            if (stockPile.length === 0 || !gameActive || isDemoActive) {
+                btnNewGame.removeAttribute('disabled');
+                btnNewGame.classList.add('animate-pulse');
+            } else {
+                btnNewGame.setAttribute('disabled', 'true');
+                btnNewGame.classList.remove('animate-pulse');
+            }
+        }
+
+        // SHUFFLE & INITIATION CODES
+        function generateArcadeDeck() {
+            let fresh = [];
+            for (let suit of SUITS) {
+                for (let r = 0; r < RANKS.length; r++) {
+                    fresh.push({
+                        suit: suit,
+                        rank: RANKS[r],
+                        value: r + 1, 
+                        color: COLORS[suit]
+                    });
+                }
+            }
+            return fresh;
+        }
+
+        function shuffleDeck(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function startNewGame() {
+            closeModal();
+            exitDemoMode();
+
+            const deck = generateArcadeDeck();
+            shuffleDeck(deck);
+
+            initialTableau = [];
+            initialStock = [];
+            initialWaste = [];
+
+            for (let c = 0; c < 7; c++) {
+                const colSlice = [];
+                for (let r = 0; r < 5; r++) {
+                    colSlice.push(deck.pop());
+                }
+                tableau[c] = colSlice;
+            }
+
+            stockPile = deck;
+            wastePile = [stockPile.pop()];
+
+            initialTableau = deepClone(tableau);
+            initialStock = deepClone(stockPile);
+            initialWaste = deepClone(wastePile);
+
+            hasActionRegistered = false; 
+            resetActiveSession();
+        }
+
+        function restartGame() {
+            closeModal();
+            exitDemoMode();
+
+            tableau = deepClone(initialTableau);
+            stockPile = deepClone(initialStock);
+            wastePile = deepClone(initialWaste);
+
+            hasActionRegistered = false; 
+            resetActiveSession();
+        }
+
+        function resetActiveSession() {
+            undoStack = [];
+            updateUndoButtonDisplay();
+
+            currentStreak = 0;
+            longestChainThisGame = 0;
+            activeChainsHistory = [];
+            cardsClearedCount = 0;
+            gameActive = true;
+
+            particles = [];
+            floatTexts = [];
+            screenShakeAmount = 0;
+            impactFlashFrames = 0;
+            activeComboNado = null;
+            timeScale = 1.0;
+
+            isVictoryActive = false;
+            victoryTimer = 0;
+            isEvaluationActive = false;
+            evaluationTimer = 0;
+
+            document.getElementById('btnAnalyze').style.display = "block";
+            document.getElementById('btnAnalyze').removeAttribute('disabled');
+            document.getElementById('btnAnalyze').innerText = "🔍 DIAGNOSE BOARD SOLVABILITY";
+            document.getElementById('analysisResult').classList.add('hidden');
+            document.getElementById('analysisResult').innerText = "";
+            document.getElementById('demoOfferContainer').classList.add('hidden');
+            lastAnalysisResult = null;
+
+            updateHUDDisplays();
+            playSynthSound('powerup');
+        }
+
+        function resizeGameCanvas() {
+            const parent = canvas.parentNode;
+            const pxRatio = window.devicePixelRatio || 1;
+            
+            canvas.width = parent.clientWidth * pxRatio;
+            canvas.height = parent.clientHeight * pxRatio;
+            
+            ctx.scale(pxRatio, pxRatio);
+        }
+
+        // AUTO-SCALING ADAPTIVE CANVAS TEXT DRAWER
+        function drawAutoScaledText(text, x, y, maxFont, baseScale, maxAllowedWidth, color, strokeColor = null, strokeWidth = 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(baseScale, baseScale);
+            
+            ctx.font = `900 ${maxFont}px 'Orbitron', sans-serif`;
+            let textWidth = ctx.measureText(text).width;
+            let finalScale = 1.0;
+            
+            if (textWidth > maxAllowedWidth) {
+                finalScale = maxAllowedWidth / textWidth;
+                ctx.scale(finalScale, finalScale);
+            }
+            
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = color;
+            
+            if (strokeColor && strokeWidth > 0) {
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = strokeWidth;
+                ctx.strokeText(text, 0, 0);
+            }
+            ctx.fillText(text, 0, 0);
+            ctx.restore();
+        }
+
+        // VISUAL DESIGN & RENDER SUBROUTINES
+        function drawArcadeCardObject(card, x, y, width, height, isPlayable, colIdx = -1, isTargetDemo = false) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            if (!isPlayable && colIdx !== -1) {
+                ctx.save();
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.18)';
+                ctx.shadowBlur = 5;
+                ctx.shadowOffsetY = 2;
+            }
+
+            if (isTargetDemo) {
+                ctx.save();
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#10b981';
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(-2, -2, width + 4, height + 4);
+                ctx.restore();
+            }
+            else if (isPlayable && isHintsEnabled && canPlayCard(card)) {
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#eab308';
+                ctx.strokeStyle = '#eab308';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(-2, -2, width + 4, height + 4);
+                ctx.restore();
+            }
+
+            ctx.fillStyle = isPlayable ? '#ffffff' : '#f1f5f9';
+            ctx.strokeStyle = isPlayable ? '#cccccc' : '#94a3b8'; 
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            if (!isPlayable && colIdx !== -1) {
+                ctx.restore(); 
+            }
+
+            ctx.save();
+            ctx.fillStyle = card.color;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.font = `900 ${width * 0.22}px 'Orbitron', sans-serif`;
+            ctx.fillText(card.rank + card.suit, width * 0.08, height * 0.08);
+            ctx.restore();
+
+            ctx.save();
+            ctx.fillStyle = card.color;
+            ctx.textAlign = 'center';
+            if (isPlayable || colIdx === -1) {
+                ctx.font = `900 ${width * 0.55}px 'Orbitron', sans-serif`;
+                ctx.textBaseline = 'middle';
+                ctx.fillText(card.rank, width / 2, height / 2);
+            } else {
+                ctx.font = `900 ${width * 0.38}px 'Orbitron', sans-serif`;
+                ctx.textBaseline = 'top';
+                ctx.fillText(card.rank, width * 0.72, height * 0.08);
+            }
+            ctx.restore();
+
+            ctx.restore();
+
+            if (isPlayable && colIdx !== -1) {
+                clickBoxes.push({
+                    type: 'tableau',
+                    colIdx: colIdx,
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height
+                });
+            }
+        }
+
+        function drawArcadeCardBack(x, y, width, height, isStock = false) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            ctx.fillStyle = '#b91c1c';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 4;
+            for (let i = -width; i < width + height; i += 16) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + height, height);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
+            if (isStock) {
+                clickBoxes.push({
+                    type: 'stock',
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height
+                });
+            }
+        }
+
+        // COSMETIC PARTICLE ENGINE
+        function spawnFloatingText(val, x, y, color) {
+            floatTexts.push({
+                text: val,
+                x: x,
+                y: y,
+                vy: -60,
+                alpha: 1.0,
+                life: 1.0,
+                color: color
+            });
+        }
+
+        function spawnSparksBurst(x, y, color, qty) {
+            for (let i = 0; i < qty; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 40 + Math.random() * 120;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 2 + Math.random() * 5,
+                    color: color,
+                    alpha: 1.0,
+                    decay: 1.5 + Math.random() * 1.5,
+                    isFire: false,
+                    isShockwave: false
+                });
+            }
+        }
+
+        function spawnCombustionParticle(x, y, level) {
+            const spread = 35;
+            const px = x + (Math.random() - 0.5) * spread;
+            const py = y + (Math.random() - 0.5) * spread;
+            
+            let hue = '#f97316'; 
+            if (level >= 15) hue = '#22d3ee'; 
+            else if (level >= 10) hue = '#ec4899'; 
+
+            particles.push({
+                x: px,
+                y: py,
+                vx: (Math.random() - 0.5) * 30,
+                vy: -60 - Math.random() * 80,
+                size: 4 + Math.random() * 8,
+                color: hue,
+                alpha: 1.0,
+                decay: 1.8 + Math.random() * 1.2,
+                isFire: true,
+                isShockwave: false
+            });
+        }
+
+        function spawnAtomicShockwave(x, y, color) {
+            particles.push({
+                x: x,
+                y: y,
+                radius: 10,
+                maxRadius: 180,
+                color: color,
+                alpha: 1.0,
+                isShockwave: true
+            });
+        }
+
+        // ACTIVE RUNTIME TICK
+        function mainRenderLoop() {
+            const now = performance.now();
+            const rawDt = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+
+            if (timeScale < 1.0) {
+                timeScale += rawDt * 1.8;
+                if (timeScale > 1.0) timeScale = 1.0;
+            }
+
+            const dt = rawDt * timeScale;
+
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            const geo = getCardLayoutCoordinates(w, h);
+
+            clickBoxes = [];
+
+            ctx.save();
+            if (currentStreak >= 5) {
+                const maxShake = Math.min(10, (currentStreak - 5) * 0.8);
+                const dx = (Math.random() - 0.5) * maxShake;
+                const dy = (Math.random() - 0.5) * maxShake;
+                ctx.translate(dx, dy);
+            }
+            if (screenShakeAmount > 0.1) {
+                const dx = (Math.random() - 0.5) * screenShakeAmount;
+                const dy = (Math.random() - 0.5) * screenShakeAmount;
+                ctx.translate(dx, dy);
+                screenShakeAmount *= 0.88;
+            }
+
+            // DYNAMIC CAMERA WARPING ZOOM STAGE
+            if (isEvaluationActive) {
+                const zoomFactor = 1.0 + Math.sin(evaluationTimer * Math.PI * 3.0) * 0.16;
+                ctx.translate(w / 2, h / 2);
+                ctx.scale(zoomFactor, zoomFactor);
+                ctx.translate(-w / 2, -h / 2);
+            }
+
+            // Background with dark retro gradient space
+            const grad = ctx.createRadialGradient(w/2, h/2, 50, w/2, h/2, w);
+            grad.addColorStop(0, '#0a0a1a');
+            grad.addColorStop(1, '#020208');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+
+            if (isVictoryActive) {
+                victoryTimer += dt;
+                screenShakeAmount = Math.max(screenShakeAmount, 8);
+                
+                if (Math.random() < 0.12) {
+                    playSynthSound('clear');
+                    spawnSparksBurst(
+                        Math.random() * w, 
+                        Math.random() * (h * 0.6) + 100, 
+                        Math.random() > 0.5 ? '#ff007f' : (Math.random() > 0.5 ? '#00f0ff' : '#ffb700'), 
+                        30
+                    );
+                }
+
+                for(let i = 0; i < 3; i++) {
+                    particles.push({
+                        x: Math.random() * w,
+                        y: -10,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: 3 + Math.random() * 8,
+                        size: 4 + Math.random() * 6,
+                        color: ['#ff007f', '#00f0ff', '#ffb700', '#00ff66', '#ffffff'][Math.floor(Math.random() * 5)],
+                        alpha: 1.0,
+                        decay: 0.005 + Math.random() * 0.01,
+                        isFire: false,
+                        isShockwave: false
+                    });
+                }
+            }
+
+            for (let c = 0; c < 7; c++) {
+                const cx = geo.gapX + c * (geo.cardWidth + geo.gapX);
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.15)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.roundRect(cx, geo.startY, geo.cardWidth, geo.cardHeight, 8);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            let demoTargetCol = -1;
+            let isDemoTargetStock = false;
+
+            if (isDemoActive && demoIndex < demoPath.length) {
+                const nextAct = demoPath[demoIndex];
+                if (nextAct.type === 'play') {
+                    demoTargetCol = nextAct.colIdx;
+                } else {
+                    isDemoTargetStock = true;
+                }
+            }
+
+            for (let c = 0; c < 7; c++) {
+                const col = tableau[c];
+                const cx = geo.gapX + c * (geo.cardWidth + geo.gapX);
+                
+                for (let r = 0; r < col.length; r++) {
+                    const ry = geo.startY + r * geo.rowSpacing;
+                    const isPlayable = (r === col.length - 1);
+                    const isTargetDemo = (isPlayable && c === demoTargetCol);
+                    drawArcadeCardObject(col[r], cx, ry, geo.cardWidth, geo.cardHeight, isPlayable, c, isTargetDemo);
+                }
+            }
+
+            // Stock rendering with no-clip boundary checks for labels
+            if (stockPile.length > 0) {
+                const offset = Math.min(stockPile.length / 4, 8);
+                for (let i = 0; i < offset; i += 2) {
+                    drawArcadeCardBack(geo.stockX - i, geo.stockY - i, geo.cardWidth, geo.cardHeight);
+                }
+                
+                if (isDemoTargetStock) {
+                    ctx.save();
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = '#10b981';
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(geo.stockX - offset - 2, geo.stockY - offset - 2, geo.cardWidth + 4, geo.cardHeight + 4);
+                    ctx.restore();
+                }
+
+                drawArcadeCardBack(geo.stockX - offset, geo.stockY - offset, geo.cardWidth, geo.cardHeight, true);
+
+                // Anti-clip calculation for STOCK text
+                let stockTextX = geo.stockX + geo.cardWidth / 2 - offset;
+                ctx.fillStyle = '#60a5fa';
+                ctx.font = "bold 12px 'Orbitron', sans-serif";
+                ctx.textAlign = 'center';
+                const stockText = `STOCK: ${stockPile.length}`;
+                const stockTextWidth = ctx.measureText(stockText).width;
+                if (stockTextX - stockTextWidth / 2 < 12) {
+                    ctx.textAlign = 'left';
+                    stockTextX = 12;
+                }
+                ctx.fillText(stockText, stockTextX, geo.stockY + geo.cardHeight + 22);
+            } else {
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(geo.stockX, geo.stockY, geo.cardWidth, geo.cardHeight);
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#4b5563';
+                ctx.font = "bold 12px 'Orbitron', sans-serif";
+                ctx.textAlign = 'center';
+                ctx.fillText("EMPTY", geo.stockX + geo.cardWidth / 2, geo.stockY + geo.cardHeight / 2);
+            }
+
+            // Discard rendering with no-clip boundary checks for labels
+            if (wastePile.length > 0) {
+                const offset = Math.min(wastePile.length / 4, 8);
+                for (let i = 0; i < offset; i += 2) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = '#cccccc';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.roundRect(geo.wasteX + i, geo.wasteY - i, geo.cardWidth, geo.cardHeight, 8);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                const topWaste = wastePile[wastePile.length - 1];
+                drawArcadeCardObject(topWaste, geo.wasteX + offset, geo.wasteY - offset, geo.cardWidth, geo.cardHeight, false);
+
+                // Anti-clip calculation for DISCARD text
+                let discardTextX = geo.wasteX + geo.cardWidth / 2 + offset;
+                ctx.fillStyle = '#ff6c00';
+                ctx.font = "bold 12px 'Orbitron', sans-serif";
+                ctx.textAlign = 'center';
+                const discardText = `DISCARD: ${wastePile.length}`;
+                const discardTextWidth = ctx.measureText(discardText).width;
+                if (discardTextX + discardTextWidth / 2 > w - 12) {
+                    ctx.textAlign = 'right';
+                    discardTextX = w - 12;
+                }
+                ctx.fillText(discardText, discardTextX, geo.wasteY + geo.cardHeight + 22);
+
+                if (currentStreak >= 5) {
+                    const burstFreq = currentStreak >= 15 ? 0.9 : (currentStreak >= 10 ? 0.65 : 0.45);
+                    if (Math.random() < burstFreq) {
+                        spawnCombustionParticle(geo.wasteX + geo.cardWidth/2 + offset, geo.wasteY + geo.cardHeight/2 - offset, currentStreak);
+                    }
+                }
+            }
+
+            if (activeComboNado) {
+                const ball = activeComboNado;
+                ball.pulse += dt * 10;
+                
+                const targetX = geo.wasteX + geo.cardWidth / 2;
+                const dx = targetX - ball.x;
+                const dy = ball.targetY - ball.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < 15) {
+                    spawnAtomicShockwave(ball.x, ball.y, ball.color);
+                    spawnSparksBurst(ball.x, ball.y, '#ffffff', 40);
+                    spawnSparksBurst(ball.x, ball.y, '#00f0ff', 40);
+                    playSynthSound('clear');
+                    screenShakeAmount = 25;
+                    activeComboNado = null;
+                } else {
+                    const step = ball.speed * dt;
+                    ball.x += (dx / dist) * step;
+                    ball.y += (dy / dist) * step;
+
+                    ctx.save();
+                    const sizePulse = ball.radius + Math.sin(ball.pulse) * 8;
+                    
+                    const radGrad = ctx.createRadialGradient(ball.x, ball.y, 2, ball.x, ball.y, sizePulse);
+                    radGrad.addColorStop(0, '#ffffff');
+                    radGrad.addColorStop(0.3, '#a5f3fc');
+                    radGrad.addColorStop(0.8, 'rgba(6, 182, 212, 0.4)');
+                    radGrad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+
+                    ctx.fillStyle = radGrad;
+                    ctx.beginPath();
+                    ctx.arc(ball.x, ball.y, sizePulse, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Display combo text safely with auto-scaling limits
+                    drawAutoScaledText("COMBO FINISHER!", ball.x, ball.y - sizePulse - 20, 32, 1.0, w - 40, '#00f0ff', '#000000', 4);
+
+                    ctx.restore();
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                if (p.isShockwave) {
+                    p.radius += dt * 300;
+                    p.alpha = 1.0 - (p.radius / p.maxRadius);
+                    if (p.alpha <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+                    ctx.save();
+                    ctx.globalAlpha = p.alpha;
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = 6;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 20;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
+            for (let i = floatTexts.length - 1; i >= 0; i--) {
+                const ft = floatTexts[i];
+                ft.life -= dt;
+                ft.y += ft.vy * dt;
+                ft.alpha = ft.life;
+
+                if (ft.life <= 0) {
+                    floatTexts.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = ft.alpha;
+                ctx.fillStyle = ft.color;
+                ctx.font = "900 24px 'Orbitron', sans-serif";
+                ctx.textAlign = 'center';
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                if (p.isShockwave) continue;
+
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                
+                if (p.isFire) {
+                    p.vy -= dt * 60;
+                } else {
+                    p.vy += dt * 250; 
+                }
+
+                p.alpha -= dt * p.decay;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * (p.isFire ? 1.5 : 1.0), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            if (impactFlashFrames > 0) {
+                ctx.fillStyle = impactFlashColor;
+                ctx.globalAlpha = 0.3 * (impactFlashFrames / 26);
+                ctx.fillRect(0, 0, w, h);
+                ctx.globalAlpha = 1.0;
+                impactFlashFrames--;
+            }
+
+            if (isVictoryActive) {
+                ctx.save();
+                
+                const colorCycle = Math.floor(performance.now() / 150) % 3;
+                let bannerColor = '#ffea00';
+                if (colorCycle === 1) bannerColor = '#00f0ff';
+                if (colorCycle === 2) bannerColor = '#ff007f';
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+                ctx.fillRect(0, 0, w, h);
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                const scale = 1.0 + Math.sin(performance.now() * 0.01) * 0.08;
+                
+                ctx.save();
+                ctx.translate(w/2, h/2 - 80);
+                ctx.scale(scale, scale);
+                ctx.font = "900 48px 'Audiowide', sans-serif";
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 12;
+                ctx.strokeText("🏆 SUPREME VICTORY 🏆", 0, 0);
+                ctx.fillStyle = bannerColor;
+                ctx.shadowColor = bannerColor;
+                ctx.shadowBlur = 20;
+                ctx.fillText("🏆 SUPREME VICTORY 🏆", 0, 0);
+                ctx.restore();
+
+                ctx.save();
+                ctx.translate(w/2, h/2);
+                ctx.scale(scale * 0.9, scale * 0.9);
+                ctx.font = "900 32px 'Press Start 2P', monospace";
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 8;
+                ctx.strokeText("STAGE COMPLETE!", 0, 0);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText("STAGE COMPLETE!", 0, 0);
+                ctx.restore();
+
+                ctx.save();
+                ctx.translate(w/2, h/2 + 80);
+                ctx.scale(scale * 1.1, scale * 1.1);
+                ctx.font = "bold 24px 'Orbitron', sans-serif";
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 6;
+                ctx.strokeText("🔥 ALL-TIME CHAMPION DETECTED 🔥", 0, 0);
+                ctx.fillStyle = '#ff6c00';
+                ctx.shadowColor = '#ff6c00';
+                ctx.shadowBlur = 15;
+                ctx.fillText("🔥 ALL-TIME CHAMPION DETECTED 🔥", 0, 0);
+                ctx.restore();
+
+                ctx.font = "bold 12px 'Orbitron', sans-serif";
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.fillText("CLICK ANYWHERE TO EVALUATE", w/2, h - 40);
+
+                ctx.restore();
+            }
+
+            // RENDER LAYER: CRITICAL JUDGMENT WARPED OVERLAY WITH AUTO-SCALERS
+            if (isEvaluationActive) {
+                evaluationTimer += dt;
+
+                ctx.save();
+                const flashAlpha = 0.25 + Math.sin(performance.now() * 0.015) * 0.15;
+                ctx.fillStyle = `rgba(239, 68, 68, ${flashAlpha})`;
+                ctx.fillRect(0, 0, w, h);
+
+                const textScale = 1.0 + Math.sin(performance.now() * 0.02) * 0.08;
+                const maxAllowedWidth = w - 40; 
+
+                // 1. Warning Header - scaled dynamically
+                drawAutoScaledText("CRITICAL JUDGMENT...", w/2, h/2 - 85, 20, textScale, maxAllowedWidth, '#eab308');
+
+                // 2. Dynamic Rating Text - scaled dynamically with strokes
+                drawAutoScaledText(evaluationText, w/2, h/2, 36, textScale * 1.25, maxAllowedWidth, '#ffffff', '#000000', 8);
+
+                // 3. Explanatory Critique Subtext - scaled dynamically with strokes
+                drawAutoScaledText(evaluationSubtext, w/2, h/2 + 75, 15, textScale * 0.88, maxAllowedWidth, '#22d3ee', '#000000', 4);
+
+                // Blinking prompt allowing the user to progress when ready
+                if (evaluationTimer > 1.0) {
+                    const promptBlink = Math.floor(performance.now() / 400) % 2 === 0;
+                    if (promptBlink) {
+                        drawAutoScaledText("TAP SCREEN TO CONTINUE", w/2, h - 50, 14, 1.0, maxAllowedWidth, '#f43f5e');
+                    }
+                }
+
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            requestAnimationFrame(mainRenderLoop);
+        }
+
+        function toggleHints() {
+            isHintsEnabled = !isHintsEnabled;
+            document.getElementById('btnHints').innerText = `HINTS: ${isHintsEnabled ? 'ON' : 'OFF'}`;
+            document.getElementById('btnHints').className = isHintsEnabled 
+                ? "px-2.5 py-1.5 rounded text-[10px] md:text-xs font-bold bg-gray-800 border border-gray-600 text-white hover:bg-gray-700 transition"
+                : "px-2.5 py-1.5 rounded text-[10px] md:text-xs font-bold bg-red-950 border border-red-500 text-red-200 hover:bg-red-900 transition";
+        }
+
+        function displayGameOverModal(isVictory = false) {
+            if (currentStreak > 0) {
+                activeChainsHistory.push(currentStreak);
+            }
+
+            const totalChains = activeChainsHistory.length;
+            const avgChain = totalChains > 0 ? (activeChainsHistory.reduce((a, b) => a + b, 0) / totalChains).toFixed(1) : "0.0";
+
+            document.getElementById('modalHeader').innerText = isVictory ? "🏆 STAGE CLEARED" : "STAGE FAILED";
+            document.getElementById('modalHeader').className = isVictory 
+                ? "text-lg sm:text-xl font-black tracking-wider text-green-400 uppercase" 
+                : "text-lg sm:text-xl font-black tracking-wider text-red-500 uppercase";
+
+            document.getElementById('lblCleared').innerText = `${cardsClearedCount}/35`;
+            document.getElementById('lblLongest').innerText = longestChainThisGame;
+            document.getElementById('lblTotalChains').innerText = totalChains;
+            document.getElementById('lblAvgChain').innerText = avgChain;
+
+            let totalGames = parseInt(localStorage.getItem('golf_chain_total_games')) || 0;
+            let totalWins = parseInt(localStorage.getItem('golf_chain_total_wins')) || 0;
+            let winPercentage = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
+            let critique = "";
+            if (winPercentage <= 20) {
+                critique = "💀 You're a horrible player.";
+            } else if (winPercentage <= 40) {
+                critique = "🤡 You're not horrible, just terrible.";
+            } else if (winPercentage <= 60) {
+                critique = "😐 You're merely OK.";
+            } else if (winPercentage <= 80) {
+                critique = "⚡ Wow, you're pretty good!";
+            } else {
+                critique = "🧠 I am actually impressed with your useless flesh brain!";
+            }
+
+            document.getElementById('lblLifetimeGames').innerText = totalGames;
+            document.getElementById('lblLifetimeWins').innerText = totalWins;
+            document.getElementById('lblWinRate').innerText = `${winPercentage}%`;
+            document.getElementById('lblCritique').innerText = critique;
+
+            document.getElementById('statsModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('statsModal').classList.add('hidden');
+        }
+
+        // --- VECTOR INTERACTION HANDLER ---
+        canvas.addEventListener('click', (event) => {
+            if (isVictoryActive) {
+                isVictoryActive = false;
+                triggerEvaluationSequence(true);
+                return;
+            }
+
+            // Handled dismiss event on tap
+            if (isEvaluationActive) {
+                if (evaluationTimer > 0.5) { 
+                    isEvaluationActive = false;
+                    displayGameOverModal(evaluationIsVictory);
+                }
+                return;
+            }
+
+            if (isDemoActive) return; 
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            for (let box of clickBoxes) {
+                if (mouseX >= box.x && mouseX <= box.x + box.width &&
+                    mouseY >= box.y && mouseY <= box.y + box.height) {
+                    
+                    if (box.type === 'tableau') {
+                        playTableauCard(box.colIdx, event.clientX, event.clientY);
+                    } else if (box.type === 'stock') {
+                        drawStockCard();
+                    }
+                    break;
+                }
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            resizeGameCanvas();
+        });
+
+        window.onload = () => {
+            resizeGameCanvas();
+            startNewGame();
+            requestAnimationFrame(mainRenderLoop);
+        };
+    </script>
+</body>
+</html>
